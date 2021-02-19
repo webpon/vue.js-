@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
+</head>
+
+<body>
+  <div id="app"></div>
+  <script type="text/template" id="template">
+    <h1 @click = "change">test数据：{{ test }}，模板引擎{{ engine }}</h1>
+    <!-- <h3 @click = 'helle'>{{pic}}</h3> -->
+    <input type="text" name="" id="str">
+  </script>
+  <script>
+    class Vue {
+      constructor(options) {
+        this.data = options.data
+        this.beforeCreate = options.beforeCreate
+        this.created = options.created
+        this.methods = options.methods
+        this.beforeMount = options.beforeMount
+        this.mounted = options.mounted
+        this.beforeUpdate = options.beforeUpdate
+        this.updated = options.updated
+        //beforeCreate
+        this.beforeCreate()
+        this._proxy.call(this, options.data);/*构造函数中*/
+        this.observe(options.data, this.beforeUpdate, function () {
+          var templateStr = this.render()
+          this.mount(templateStr)
+        }, this.updated);
+        //created
+        this.created()
+        var templateStr = this.render()
+        //beforeMount
+        this.beforeMount()
+        this.mount(templateStr)
+        //mounted
+        this.mounted()
+
+      }
+
+      /*观察者模式，实现响应式，当数据修改后重新渲染*/
+      observe(value, cb1, cb2, cb3) {
+        Object.keys(value).forEach((key) => this.defineReactive(value, key, value[key], cb1, cb2, cb3))
+      }
+      defineReactive(obj, key, val, cb1, cb2, cb3) {
+        Object.defineProperty(obj, key, {
+          enumerable: true,
+          configurable: true,
+          get: () => {
+            return val
+          },
+          set: newVal => {
+            val = newVal;
+            /*订阅者收到消息的回调*/
+            //如果不使用.call(this)，回调函数的this指向window
+            cb1.call(this);
+            cb2.call(this);
+            cb3.call(this);
+          }
+        })
+      }
+      /*代理*/  
+      // 我们需要对app.data.text操作才会触发set。为了偷懒，我们需要一种方便的方法通过app.text直接设置就能触发set对视图进行重绘。
+      //那么就需要用到代理。但是这个不是必须的
+      _proxy(data) {
+        const that = this;
+        Object.keys(data).forEach(key => {
+          Object.defineProperty(that, key, {
+            configurable: true,
+            enumerable: true,
+            get: function proxyGetter() {
+              return that.data[key];
+            },
+            set: function proxySetter(val) {
+              // 相当于我们先在app创建对应属性，如果改变这个属性，那么我们就去app.data改变对应属性
+              that.data[key] = val;
+            }
+          })
+        });
+      }
+      //渲染视图
+      render() {
+        console.log('render');
+        var templateStr = document.getElementById('template').innerText;
+        templateStr = (function (templateStr, data) {
+          return templateStr.replace(/\{\{\s*(\w+)\s*\}\}/g, function (match, $1) {
+            return data[$1];
+          });
+        })(templateStr, this.data)
+        return templateStr
+      }
+      //把虚拟dom挂载到容器中
+      mount(templateStr) {
+        document.getElementById('app').innerHTML = templateStr
+      }
+    }
+
+    let app = new Vue({
+      el: '#app',
+      data: {
+        test: '测111试',
+        engine: 'Mustache',
+        pic: 'http'
+      },
+      beforeCreate() {
+        console.log('beforeCreate');
+      },
+      created() {
+        console.log('created');
+      },
+      beforeMount() {
+        console.log('beforeMount');
+      },
+      mounted() {
+        var _this = this
+        var templateStr = document.getElementById('template').innerText;
+        function methods(templateStr, data) {
+          return templateStr.match(/@click\s*=\s*"(\w+)"/);
+        }
+        var method = methods(templateStr, this.data)[1]
+        console.log(document.getElementsByTagName('h1'));
+        document.querySelector('h1').onclick = function () {
+          console.log(232323);
+          _this.methods[method].call(_this)
+        }
+      },
+      beforeUpdate() {
+        console.log('beforeUpdate');
+        console.log(this.test);
+      },
+      updated() {
+        console.log('updated');
+      },
+      methods: {
+        change() {
+          console.log(this);
+          this.test = String(Math.random()).slice(2, 5)
+          console.log('响应式改变数据');
+        },
+      }
+    })
+    console.log(app);
+    setTimeout(() => {
+      app.data.test = '2323'
+    }, 1000);
+    setTimeout(() => {
+      app.test = '23123'
+    }, 2000);
+  </script>
+</body>
+
+</html>
